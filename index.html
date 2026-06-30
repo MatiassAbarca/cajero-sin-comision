@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CajeroSinComisión</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#1a56a0" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="CajeroSin$" />
+  <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f0f4f8;
+      color: #1a202c;
+      height: 100vh;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── HEADER ── */
+    header {
+      background: #1a56a0;
+      color: white;
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      z-index: 1000;
+      flex-shrink: 0;
+    }
+
+    .header-info h1 { font-size: 18px; font-weight: 600; }
+    .header-info p  { font-size: 12px; opacity: 0.8; margin-top: 2px; }
+
+    /* Botón instalar PWA */
+    #btn-instalar {
+      display: none;
+      background: rgba(255,255,255,0.2);
+      border: 1px solid rgba(255,255,255,0.4);
+      color: white;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    #btn-instalar:hover { background: rgba(255,255,255,0.3); }
+
+    /* ── PANEL DE CONTROL ── */
+    .panel {
+      background: white;
+      padding: 12px 16px;
+      display: flex;
+      gap: 10px;
+      align-items: flex-end;
+      flex-wrap: wrap;
+      border-bottom: 1px solid #e2e8f0;
+      z-index: 999;
+      flex-shrink: 0;
+    }
+
+    .campo {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      flex: 1;
+      min-width: 130px;
+    }
+
+    .campo label {
+      font-size: 11px;
+      font-weight: 600;
+      color: #718096;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .campo select {
+      padding: 8px 10px;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 14px;
+      color: #1a202c;
+      background: white;
+      outline: none;
+      transition: border-color 0.2s;
+      width: 100%;
+    }
+
+    .campo select:focus { border-color: #1a56a0; }
+
+    .botones {
+      display: flex;
+      gap: 8px;
+      align-items: flex-end;
+    }
+
+    .btn {
+      padding: 8px 14px;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+      white-space: nowrap;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn-primary { background: #1a56a0; color: white; }
+    .btn-primary:hover { background: #154483; }
+    .btn-ubicacion { background: #e8f0fb; color: #1a56a0; }
+    .btn-ubicacion:hover { background: #d0e2f7; }
+
+    /* ── CONTENEDOR PRINCIPAL ── */
+    .contenedor {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ── MAPA ── */
+    #mapa { flex: 1; z-index: 1; }
+
+    /* ── SIDEBAR ── */
+    .sidebar {
+      width: 290px;
+      background: white;
+      border-left: 1px solid #e2e8f0;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+
+    .sidebar-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid #e2e8f0;
+      font-size: 13px;
+      font-weight: 600;
+      color: #4a5568;
+      background: #f7fafc;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .cajero-card {
+      padding: 12px 14px;
+      border-bottom: 1px solid #f0f4f8;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .cajero-card:hover  { background: #f7fafc; }
+    .cajero-card.activo { background: #e8f0fb; border-left: 3px solid #1a56a0; }
+
+    .cajero-top { display: flex; justify-content: space-between; align-items: flex-start; }
+    .cajero-banco { font-size: 13px; font-weight: 600; color: #1a202c; }
+    .cajero-distancia { font-size: 12px; color: #1a56a0; font-weight: 700; flex-shrink: 0; margin-left: 8px; }
+    .cajero-direccion { font-size: 12px; color: #718096; margin-top: 3px; }
+    .cajero-tipo { font-size: 11px; margin-top: 3px; }
+    .tipo-caja { color: #0f6e56; font-weight: 600; }
+    .cajero-horario { font-size: 11px; color: #a0aec0; margin-top: 2px; }
+
+    /* ── ESTADO VACÍO ── */
+    .estado {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 30px 20px;
+      text-align: center;
+      color: #a0aec0;
+    }
+    .estado-icono { font-size: 40px; margin-bottom: 12px; }
+    .estado-texto { font-size: 13px; line-height: 1.6; }
+
+    /* ── NOTIFICACIÓN ── */
+    .notif {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1a202c;
+      color: white;
+      padding: 10px 20px;
+      border-radius: 20px;
+      font-size: 13px;
+      z-index: 9999;
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+    .notif.visible { opacity: 1; }
+
+    /* ── RESPONSIVE MOBILE ── */
+    @media (max-width: 640px) {
+      .contenedor { flex-direction: column; }
+      .sidebar {
+        width: 100%;
+        height: 230px;
+        border-left: none;
+        border-top: 1px solid #e2e8f0;
+        overflow-y: auto;
+      }
+      .panel { gap: 8px; padding: 10px 12px; }
+      header { padding: 10px 14px; }
+      .header-info h1 { font-size: 16px; }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- HEADER -->
+  <header>
+    <div class="header-info">
+      <h1>🏧 CajeroSinComisión</h1>
+      <p>Encuentra el cajero de tu banco más cercano</p>
+    </div>
+    <button id="btn-instalar" onclick="instalarPWA()">⬇ Instalar app</button>
+  </header>
+
+  <!-- PANEL -->
+  <div class="panel">
+    <div class="campo">
+      <label>Tu banco</label>
+      <select id="select-banco">
+        <option value="">Cargando bancos...</option>
+      </select>
+    </div>
+
+    <div class="campo">
+      <label>Radio</label>
+      <select id="select-radio">
+        <option value="1">1 km</option>
+        <option value="2" selected>2 km</option>
+        <option value="5">5 km</option>
+        <option value="10">10 km</option>
+      </select>
+    </div>
+
+    <div class="botones">
+      <button class="btn btn-ubicacion" onclick="obtenerUbicacion()">📍 Ubicación</button>
+      <button class="btn btn-primary"   onclick="buscarCajeros()">Buscar</button>
+    </div>
+  </div>
+
+  <!-- MAPA + SIDEBAR -->
+  <div class="contenedor">
+    <div id="mapa"></div>
+
+    <div class="sidebar">
+      <div class="sidebar-header" id="sidebar-titulo">Resultados</div>
+      <div id="lista-cajeros">
+        <div class="estado">
+          <div class="estado-icono">🗺️</div>
+          <div class="estado-texto">
+            Selecciona tu banco y presiona<br>
+            <strong>📍 Ubicación</strong> para comenzar
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- NOTIFICACIÓN -->
+  <div class="notif" id="notif"></div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <script>
+    // ── CONFIG ───────────────────────────────────────────────
+    const API_BASE = "http://localhost:5000";
+
+    // ── MAPA ─────────────────────────────────────────────────
+    const mapa = L.map("mapa", { zoomControl: true }).setView([-33.45, -70.65], 13);
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: '© <a href="https://www.openstreetmap.org">OpenStreetMap</a>',
+      maxZoom: 19,
+    }).addTo(mapa);
+
+    // Iconos
+    const mkIcono = (color, emoji) => L.divIcon({
+      className: "",
+      html: `<div style="
+        background:${color};border-radius:50% 50% 50% 0;
+        width:30px;height:30px;display:flex;align-items:center;
+        justify-content:center;font-size:14px;transform:rotate(-45deg);
+        border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);">
+        <span style="transform:rotate(45deg)">${emoji}</span></div>`,
+      iconSize: [30, 30], iconAnchor: [15, 30],
+    });
+
+    const iconoCajero     = mkIcono("#1a56a0", "🏧");
+    const iconoCajaVecina = mkIcono("#0f6e56", "🏪");
+    const iconoUsuario    = L.divIcon({
+      className: "",
+      html: `<div style="background:#e53e3e;border-radius:50%;width:20px;height:20px;
+             border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.4);"></div>`,
+      iconSize: [20, 20], iconAnchor: [10, 10],
+    });
+
+    let markerUsuario = null;
+    let markersCajeros = [];
+    let ubicacionUsuario = null;
+    let cardActiva = null;
+
+    // ── CARGAR BANCOS ────────────────────────────────────────
+    async function cargarBancos() {
+      try {
+        const res  = await fetch(`${API_BASE}/api/bancos`);
+        const datos = await res.json();
+        const sel  = document.getElementById("select-banco");
+        sel.innerHTML = '<option value="">— Selecciona tu banco —</option>';
+        datos.bancos.forEach(b => {
+          const o = document.createElement("option");
+          o.value = b; o.textContent = b;
+          sel.appendChild(o);
+        });
+      } catch {
+        mostrarNotif("⚠️ No se pudo conectar al servidor");
+      }
+    }
+
+    // ── UBICACIÓN ────────────────────────────────────────────
+    function obtenerUbicacion() {
+      mostrarNotif("📍 Obteniendo ubicación...");
+      if (!navigator.geolocation) { mostrarNotif("❌ Sin soporte de geolocalización"); return; }
+
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          ubicacionUsuario = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+          mapa.setView([ubicacionUsuario.lat, ubicacionUsuario.lon], 15);
+
+          if (markerUsuario) {
+            markerUsuario.setLatLng([ubicacionUsuario.lat, ubicacionUsuario.lon]);
+          } else {
+            markerUsuario = L.marker(
+              [ubicacionUsuario.lat, ubicacionUsuario.lon],
+              { icon: iconoUsuario, zIndexOffset: 1000 }
+            ).addTo(mapa).bindPopup("📍 Tu ubicación");
+          }
+
+          mostrarNotif("✅ Ubicación obtenida");
+          const banco = document.getElementById("select-banco").value;
+          if (banco) buscarCajeros();
+        },
+        () => mostrarNotif("❌ No se pudo obtener la ubicación"),
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    }
+
+    // ── BUSCAR CAJEROS ───────────────────────────────────────
+    async function buscarCajeros() {
+      const banco = document.getElementById("select-banco").value;
+      const radio = document.getElementById("select-radio").value;
+
+      if (!banco) { mostrarNotif("⚠️ Selecciona tu banco"); return; }
+      if (!ubicacionUsuario) { mostrarNotif("⚠️ Obtén tu ubicación primero"); return; }
+
+      markersCajeros.forEach(m => mapa.removeLayer(m));
+      markersCajeros = [];
+
+      document.getElementById("lista-cajeros").innerHTML = `
+        <div class="estado"><div class="estado-icono">⏳</div>
+        <div class="estado-texto">Buscando cajeros...</div></div>`;
+
+      try {
+        const url = `${API_BASE}/api/cajeros/cercanos?lat=${ubicacionUsuario.lat}&lon=${ubicacionUsuario.lon}&banco=${encodeURIComponent(banco)}&radio=${radio}&limit=30`;
+        const datos = await (await fetch(url)).json();
+
+        if (datos.total === 0) {
+          document.getElementById("sidebar-titulo").textContent = "Sin resultados";
+          document.getElementById("lista-cajeros").innerHTML = `
+            <div class="estado"><div class="estado-icono">😕</div>
+            <div class="estado-texto">No hay cajeros de <strong>${banco}</strong><br>
+            en ${radio} km. Intenta un radio mayor.</div></div>`;
+          return;
+        }
+
+        document.getElementById("sidebar-titulo").textContent =
+          `${datos.total} cajero${datos.total > 1 ? "s" : ""} encontrado${datos.total > 1 ? "s" : ""}`;
+
+        renderizarResultados(datos.cajeros);
+
+      } catch {
+        mostrarNotif("❌ Error al conectar con el servidor");
+      }
+    }
+
+    // ── RENDERIZAR ───────────────────────────────────────────
+    function renderizarResultados(cajeros) {
+      const lista  = document.getElementById("lista-cajeros");
+      lista.innerHTML = "";
+      const bounds = ubicacionUsuario
+        ? [[ubicacionUsuario.lat, ubicacionUsuario.lon]] : [];
+
+      cajeros.forEach((cajero, i) => {
+        const esCajaVecina = cajero.banco.toLowerCase().includes("caja vecina");
+        const distTexto    = cajero.distancia_m < 1000
+          ? `${cajero.distancia_m} m` : `${cajero.distancia_km} km`;
+
+        // Card
+        const card = document.createElement("div");
+        card.className = "cajero-card";
+        card.id = `card-${i}`;
+        card.innerHTML = `
+          <div class="cajero-top">
+            <div class="cajero-banco">${cajero.banco.replace(" (Caja Vecina)", "")}</div>
+            <div class="cajero-distancia">${distTexto}</div>
+          </div>
+          ${esCajaVecina
+            ? `<div class="cajero-tipo tipo-caja">🏪 Caja Vecina</div>`
+            : `<div class="cajero-tipo" style="color:#1a56a0">🏧 Cajero automático</div>`}
+          <div class="cajero-direccion">${cajero.direccion || "Dirección no disponible"}</div>
+          ${cajero.horario ? `<div class="cajero-horario">🕐 ${cajero.horario}</div>` : ""}
+        `;
+        card.addEventListener("click", () => activarCajero(i, cajero));
+        lista.appendChild(card);
+
+        // Marker
+        const icono  = esCajaVecina ? iconoCajaVecina : iconoCajero;
+        const marker = L.marker([cajero.lat, cajero.lon], { icon: icono })
+          .addTo(mapa)
+          .bindPopup(`
+            <b>${cajero.banco}</b><br>
+            ${esCajaVecina ? "🏪 Caja Vecina<br>" : ""}
+            ${cajero.direccion || "Sin dirección"}<br>
+            <small>📍 ${distTexto}</small>
+            ${cajero.horario ? `<br><small>🕐 ${cajero.horario}</small>` : ""}
+          `);
+        marker.on("click", () => activarCajero(i, cajero));
+        markersCajeros.push(marker);
+        bounds.push([cajero.lat, cajero.lon]);
+      });
+
+      if (bounds.length) mapa.fitBounds(bounds, { padding: [40, 40] });
+    }
+
+    // ── ACTIVAR CAJERO ───────────────────────────────────────
+    function activarCajero(i, cajero) {
+      if (cardActiva !== null) {
+        document.getElementById(`card-${cardActiva}`)?.classList.remove("activo");
+      }
+      document.getElementById(`card-${i}`)?.classList.add("activo");
+      document.getElementById(`card-${i}`)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      mapa.setView([cajero.lat, cajero.lon], 17);
+      markersCajeros[i].openPopup();
+      cardActiva = i;
+    }
+
+    // ── NOTIFICACIÓN ─────────────────────────────────────────
+    let notifTimer = null;
+    function mostrarNotif(msg) {
+      const n = document.getElementById("notif");
+      n.textContent = msg;
+      n.classList.add("visible");
+      if (notifTimer) clearTimeout(notifTimer);
+      notifTimer = setTimeout(() => n.classList.remove("visible"), 2500);
+    }
+
+    // ── PWA: INSTALAR ────────────────────────────────────────
+    let deferredPrompt = null;
+
+    window.addEventListener("beforeinstallprompt", (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      document.getElementById("btn-instalar").style.display = "block";
+    });
+
+    async function instalarPWA() {
+      if (!deferredPrompt) return;
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === "accepted") mostrarNotif("✅ App instalada");
+      deferredPrompt = null;
+      document.getElementById("btn-instalar").style.display = "none";
+    }
+
+    // ── PWA: SERVICE WORKER ──────────────────────────────────
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("/service-worker.js")
+          .then(() => console.log("[PWA] Service Worker registrado"))
+          .catch(err => console.error("[PWA] Error:", err));
+      });
+    }
+
+    // ── INIT ─────────────────────────────────────────────────
+    cargarBancos();
+  </script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+# Archivos generados / temporales
+__pycache__/
+*.pyc
+*.pyo
+.env
+debug_*.json
+
+# Archivos de desarrollo (no necesarios en producción)
+descargar_cajeros.py
+scraper_bancoestado.py
+scraper_bancoestado_v2.py
+limpiar_datos.py
+limpiar_v2.py
+reclasificar_cajas.py
+explorar_datos.py
+generar_iconos.py
+cajeros_chile.json
+cajeros_excluidos.json
+resumen_bancos.json
